@@ -3,9 +3,8 @@ import numpy as np
 import argparse
 import math
 
-N=500
+N=5000
 p=10
-
 
 def next_batch(X, y, batchSize):
 	rng_state = np.random.get_state()
@@ -28,16 +27,17 @@ def loss(A,b,w):
 
 #argument parser
 ap = argparse.ArgumentParser()
-ap.add_argument("-e", "--epochs", type=float, default=5,
+ap.add_argument("-e", "--epochs", type=float, default=100,
 	help="# of epochs")
 ap.add_argument("-a", "--alpha", type=float, default=0.1,
 	help="learning rate")
-ap.add_argument("-b", "--batch_size", type=int, default=N/10,
+ap.add_argument("-b", "--batch_size", type=int, default=N/100,
 	help="size of SGD mini-batches")
 args = vars(ap.parse_args())
-t=100
+t=20
 epochs=args["epochs"]
 alpha=args["alpha"]
+
 batch_size=args["batch_size"]
 
 #data generation
@@ -50,6 +50,7 @@ cov=(1/SNR)
 y=np.random.multivariate_normal(X.dot(W_nat),cov*np.identity(N),1)
 y=y[0]
 print("Samples have been generated\n")
+alpha/=batch_size
 
 #computing best w for the data and getting its loss
 w_MLE=(np.linalg.inv(np.matmul(X.T,X)).dot(X.T.dot(y)))
@@ -86,7 +87,7 @@ for epoch in np.arange(0, epochs):
 		error = preds - batchY
 		loss = 0.5*np.sum(error ** 2)
 		
-		gradient = batchX.T.dot(error) / batchX.shape[0]
+		gradient = batchX.T.dot(error)
 		W_SGD += -alpha * gradient
 		preds = X.dot(W_SGD)
 		error = preds - y
@@ -110,7 +111,7 @@ for epoch in np.arange(0, epochs):
 		error = preds - batchY
 		loss = 0.5*np.sum(error ** 2)
 		
-		gradient = batchX.T.dot(error) / batchX.shape[0]
+		gradient = batchX.T.dot(error)
 		W_SGD2.append(W2-(alpha * gradient))
 		if (len(W_SGD2)==t):
 			W_SGD2.pop(0)
@@ -136,8 +137,8 @@ for epoch in np.arange(0, epochs):
 		error = preds - batchY
 		loss = 0.5*np.sum(error ** 2)
 		
-		gradient = batchX.T.dot(error) / batchX.shape[0]
-		gamma=alpha/(np.sqrt(n))
+		gradient = batchX.T.dot(error)
+		gamma=(2*alpha)/(np.sqrt(n))
 		W_SGD3 += -gamma * gradient
 		preds = X.dot(W_SGD3)
 		error = preds - y
@@ -176,7 +177,7 @@ gradient2=np.zeros(p)
 s=0
 ni=0
 n=0
-burnin=epochs/20
+burnin=2
 for epoch in np.arange(0, epochs):
 	# initialize the total loss for the epoch
 	epochLoss = [] 
@@ -187,11 +188,11 @@ for epoch in np.arange(0, epochs):
 		error = preds - batchY
 		loss = 0.5*np.sum(error ** 2)
 		np.copyto(gradient2,gradient)
-		gradient = batchX.T.dot(error) / batchX.shape[0]
+		gradient = batchX.T.dot(error) 
 		np.copyto(W_SGDH3,W_SGDH2)
 		np.copyto(W_SGDH2,W_SGDH)
 		W_SGDH += -alpha * gradient
-		if (epoch>2):
+		if (epoch>3):
 			s+=np.dot(W_SGDH-W_SGDH2,W_SGDH2-W_SGDH3)/(alpha**2)
 			# s+=np.dot(gradient2,gradient)
 		# print(s)
@@ -213,7 +214,11 @@ print(w_MLE)
 print(W_SGD)
 print(W_SGDH)
 fig = plt.figure()
-plt.semilogy(np.linspace(0,epochs,len(lossHistorySGD),endpoint=False) , np.array(lossHistorySGD)-loss_MLE,'b',np.linspace(0,epochs,len(lossHistorySGD3),endpoint=False) , np.array(lossHistorySGD3)-loss_MLE,'y',np.linspace(0,epochs,len(lossHistorySGD2),endpoint=False) , np.array(lossHistorySGD2)-loss_MLE,'r',np.linspace(0,epochs,len(lossHistorySGDH),endpoint=False), np.array(lossHistorySGDH)-loss_MLE,'g')
+plt.semilogy(np.linspace(0,epochs,len(lossHistorySGD),endpoint=False) , np.array(lossHistorySGD)-loss_MLE,'b',label='Vanilla SGD')
+plt.semilogy(np.linspace(0,epochs,len(lossHistorySGD2),endpoint=False) , np.array(lossHistorySGD2)-loss_MLE,'y',label='Average iterate SGD')
+plt.semilogy(np.linspace(0,epochs,len(lossHistorySGD3),endpoint=False) , np.array(lossHistorySGD3)-loss_MLE,'r',label='SGD with step-size (2*alpha)/sqrt(t)')
+plt.semilogy(np.linspace(0,epochs,len(lossHistorySGDH),endpoint=False), np.array(lossHistorySGDH)-loss_MLE,'g',label='SGD 1/2')
+plt.legend(loc='upper left')
 fig.suptitle("Training Loss")
 plt.xlabel("Epoch #")
 plt.ylabel("Loss")
