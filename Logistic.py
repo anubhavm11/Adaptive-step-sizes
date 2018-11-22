@@ -2,34 +2,34 @@ import matplotlib.pyplot as plt
 import numpy as np
 import argparse
 import math
-import seaborn as sns
 
 N=5000
 p=10
 
+def sigmoid_activation(x):
+	# compute and return the sigmoid activation value for a
+	# given input value
+	return 1.0 / (1 + np.exp(-x))
+
 def next_batch(X, y, batchSize):
-	new_order = np.random.permutation(N)
-	X=X[new_order]
-	y=y[new_order]
+	rng_state = np.random.get_state()
+	np.random.shuffle(X)
+	np.random.set_state(rng_state)
+	np.random.shuffle(y)
 	# loop over our dataset `X` in mini-batches of size `batchSize`
 	for i in np.arange(0, X.shape[0], batchSize):
 		# yield a tuple of the current batched data and labels
 		yield (X[int(i):int(i) + int(batchSize)], y[int(i):int(i) + int(batchSize)])
 
-def error(A,b,w):
-	preds=A.dot(w)
-	errors=preds-b
-	return errors
 
-def loss(A,b,w):
-	errors=error(A,b,w)
-	return (0.5*np.sum(errors**2))
+
+
 
 #argument parser
 ap = argparse.ArgumentParser()
 ap.add_argument("-e", "--epochs", type=float, default=100,
 	help="# of epochs")
-ap.add_argument("-a", "--alpha", type=float, default=0.01,
+ap.add_argument("-a", "--alpha", type=float, default=0.1,
 	help="learning rate")
 ap.add_argument("-b", "--batch_size", type=int, default=1,
 	help="size of SGD mini-batches")
@@ -53,11 +53,11 @@ print("Samples have been generated\n")
 alpha/=batch_size
 
 #computing best w for the data and getting its loss
-w_MLE=(np.linalg.inv(np.matmul(X.T,X)).dot(X.T.dot(y)))
-loss_MLE=loss(X,y,w_MLE)
-print(w_MLE)
-print(W_nat)
-print(loss_MLE/N)
+# w_MLE=(np.linalg.inv(np.matmul(X.T,X)).dot(X.T.dot(y)))
+# loss_MLE=loss(X,y,w_MLE)
+# print(w_MLE)
+# print(W_nat)
+# print(loss_MLE/N)
 
 
 
@@ -83,12 +83,10 @@ for epoch in np.arange(0, epochs):
 	epochLoss = [] 
 	# loop over our data in batches
 	for (batchX, batchY) in next_batch(X, y, batch_size):
-		preds = batchX.dot(W_SGD)
-		error = preds - batchY
-		loss = 0.5*np.sum(error ** 2)
+		a = batchX.dot(W_SGD)
 		
-		gradient = batchX.T.dot(error)
-		W_SGD += -0.1 * gradient
+		gradient = ((1-(sigmoid_activation(batchY*a)))*batchY)*batchX
+		W_SGD += -alpha * gradient
 		preds = X.dot(W_SGD)
 		error = preds - y
 		loss = 0.5*np.sum(error ** 2)
@@ -178,8 +176,6 @@ W_SGDH3=np.zeros(p)
 gradient=np.zeros(p)
 gradient2=np.zeros(p)
 s=0
-s2=0
-ars=[]
 ni=0
 n=0
 burnin=5000
@@ -197,16 +193,13 @@ for epoch in np.arange(0, epochs):
 		np.copyto(W_SGDH3,W_SGDH2)
 		np.copyto(W_SGDH2,W_SGDH)
 		W_SGDH += -alpha * gradient
-		# if (n>1000):
-		s+=np.dot(W_SGDH-W_SGDH2,W_SGDH2-W_SGDH3)/(alpha**2)
-		s2+=np.dot(W_SGDH-W_SGDH2,W_SGDH2-W_SGDH3)/(alpha**2)
-		# s+=np.dot(gradient2,gradient)
+		if (n>1000):
+			s+=np.dot(W_SGDH-W_SGDH2,W_SGDH2-W_SGDH3)/(alpha**2)
+			# s+=np.dot(gradient2,gradient)
 		# print(s)
-		ars.append(s2);
 		if (n>ni+burnin) and (s<0) :
 			ni=n
 			s=0
-			s2=0
 			alpha/=2
 		preds = X.dot(W_SGDH)
 		error = preds - y
@@ -221,7 +214,6 @@ print(W_nat)
 print(w_MLE)
 print(W_SGD)
 print(W_SGDH)
-sns.set
 fig = plt.figure()
 plt.semilogy(np.linspace(0,epochs,len(lossHistorySGD),endpoint=False) , (np.array(lossHistorySGD)-loss_MLE)/N,'b',label='Vanilla SGD')
 plt.semilogy(np.linspace(0,epochs,len(lossHistorySGD2),endpoint=False) , (np.array(lossHistorySGD2)-loss_MLE)/N,'y',label='Average iterate SGD')
@@ -231,11 +223,4 @@ plt.legend(loc='upper left')
 fig.suptitle("Training Loss")
 plt.xlabel("Epoch #")
 plt.ylabel("Loss")
-plt.show()
-plt.clf()
-plt.plot(np.linspace(0,epochs,len(ars),endpoint=False) , np.array(ars),'b',label='variation of s')
-plt.legend(loc='upper left')
-fig.suptitle("Variation of s")
-plt.xlabel("Epoch #")
-plt.ylabel("s")
 plt.show()
