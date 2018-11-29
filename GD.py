@@ -40,24 +40,19 @@ alpha=args["alpha"]
 
 batch_size=args["batch_size"]
 
-#data generation
-W_nat=np.zeros(p)
-for i in range(p):
-	W_nat[i]=10*np.exp(-0.75*i)
-X=np.random.multivariate_normal(np.zeros(p),np.identity(p),N)
-SNR=2.0
-cov=(1/SNR)
-y=np.random.multivariate_normal(X.dot(W_nat),cov*np.identity(N),1)
-y=y[0]
-print("Samples have been generated\n")
+
+
+X=np.load('train_x.npy')
+y=np.load('train_y.npy')
+print("Samples have been loaded\n")
 alpha/=batch_size
 
 #computing best w for the data and getting its loss
 w_MLE=(np.linalg.inv(np.matmul(X.T,X)).dot(X.T.dot(y)))
 loss_MLE=loss(X,y,w_MLE)
-print(w_MLE)
-print(W_nat)
-print(loss_MLE/N)
+# print(w_MLE)
+# print(W_nat)
+# print(loss_MLE/N)
 
 
 
@@ -75,81 +70,101 @@ print(loss_MLE/N)
 # 	# 	alpha=alpha/2;
 # 	W_GD += -alpha * gradient
 
+
+W_SGDInit=np.load('W_init.npy')
+
 #SGD final iterate
 lossHistorySGD=[]
-W_SGD = np.random.uniform(size=(X.shape[1],))
+n=0
+gamma=0.0001
+W_SGD = W_SGDInit
 for epoch in np.arange(0, epochs):
 	# initialize the total loss for the epoch
 	epochLoss = [] 
+	new_order = np.random.permutation(N)
+	X=X[new_order]
+	y=y[new_order]
 	# loop over our data in batches
-	for (batchX, batchY) in next_batch(X, y, batch_size):
-		preds = batchX.dot(W_SGD)
-		error = preds - batchY
-		loss = 0.5*np.sum(error ** 2)
+	for i in range(N):
+		n+=1
+		preds = X[i].dot(W_SGD)
+		error = preds - y[i]
+		loss = 0.5*error*error
 		
-		gradient = batchX.T.dot(error)
-		W_SGD += -0.1 * gradient
-		preds = X.dot(W_SGD)
-		error = preds - y
-		loss = 0.5*np.sum(error ** 2)
-		epochLoss.append(loss)
-		lossHistorySGD.append(loss)
+		gradient = X[i]*(error)
+		W_SGD += -gamma * gradient	
+		if n%100==0 :
+			preds = X.dot(W_SGD)
+			error = preds - y
+			loss = 0.5*np.sum(error ** 2)
+			epochLoss.append(loss)
+			lossHistorySGD.append(loss)
 	# lossHistorySGD.append(np.average(epochLoss)/batch_size)
-	print("[INFO] SGD epoch #{}, average loss={} alpha={}".format(epoch + 1, np.average(epochLoss)/N,alpha))
+	print("[INFO] SGD epoch #{}, average loss={} step-size={}".format(epoch + 1, np.average(epochLoss)/N,gamma))
 
 #SGD average iterate
-lossHistorySGD2=[]
+lossHistorySGDAvg=[]
 n=0
-W_SGD2 = np.random.uniform(size=(X.shape[1],))
-
+gamma=0.01
+W_SGD = W_SGDInit
+W_SGDAvg = W_SGDInit
 for epoch in np.arange(0, epochs):
 	# initialize the total loss for the epoch
 	epochLoss = [] 
 	
+	new_order = np.random.permutation(N)
+	X=X[new_order]
+	y=y[new_order]
 	# loop over our data in batches
-	for (batchX, batchY) in next_batch(X, y, batch_size):
+	for i in range(N):
 		n+=1
-		preds = batchX.dot(W_SGD2)
-		error = preds - batchY
-		loss = 0.5*np.sum(error ** 2)
+		preds = X[i].dot(W_SGD)
+		error = preds - y[i]
+		loss = 0.5*error*error
 		
-		gradient = batchX.T.dot(error)
-		W2=W_SGD2-(2*gradient)
-		W_SGD2=(W2+(W_SGD2*n))/(n+1)
-		preds = X.dot(W_SGD2)
-		error = preds - y
-		loss = 0.5*np.sum(error ** 2)
-		
-		epochLoss.append(loss)
-		lossHistorySGD2.append(loss)
+		gradient = X[i]*(error)
+		W_SGD=W_SGD-(gamma*gradient)
+		W_SGDAvg=(W_SGD+(W_SGDAvg*n))/(n+1)
+		if n%100==0 :
+			preds = X.dot(W_SGDAvg)
+			error = preds - y
+			loss = 0.5*np.sum(error ** 2)
+			
+			epochLoss.append(loss)
+			lossHistorySGDAvg.append(loss)
 	# lossHistorySGD.append(np.average(epochLoss)/batch_size)
-	print("[INFO] SGD average epoch #{}, average loss={} alpha={}".format(epoch + 1, np.average(epochLoss)/N,alpha))
+	print("[INFO] SGD average epoch #{}, average loss={} step-size={}".format(epoch + 1, np.average(epochLoss)/N,gamma))
 
 #SGD 1/sqrt(t) step size
-lossHistorySGD3=[]
+lossHistorySGDDecay=[]
 n=0
-W_SGD3 = np.random.uniform(size=(X.shape[1],))
+W_SGDDecay = W_SGDInit
+gamma=0.01
 for epoch in np.arange(0, epochs):
 	# initialize the total loss for the epoch
 	epochLoss = [] 
+	
+	new_order = np.random.permutation(N)
+	X=X[new_order]
+	y=y[new_order]
 	# loop over our data in batches
-	for (batchX, batchY) in next_batch(X, y, batch_size):
+	for i in range(N):
 		n+=1
-		preds = batchX.dot(W_SGD3)
-		error = preds - batchY
-		loss = 0.5*np.sum(error ** 2)
+		preds = X[i].dot(W_SGDDecay)
+		error = preds - y[i]
+		loss = 0.5*error*error
 		
-		gradient = batchX.T.dot(error)
-		gamma=(0.1)/(np.sqrt(n))
-		W_SGD3 += -gamma * gradient
-		preds = X.dot(W_SGD3)
-		error = preds - y
-		loss = 0.5*np.sum(error ** 2)
-		
-		epochLoss.append(loss)
-		lossHistorySGD3.append(loss)
+		gradient = X[i]*(error)
+		W_SGDDecay += -(gamma/np.sqrt(n)) * gradient
+		if n%100==0 :
+			preds = X.dot(W_SGDDecay)
+			error = preds - y
+			loss = 0.5*np.sum(error ** 2)
+			
+			epochLoss.append(loss)
+			lossHistorySGDDecay.append(loss)
 	# lossHistorySGD.append(np.average(epochLoss)/batch_size)
-	print("[INFO] SGD 1/sqrt(t) step epoch #{}, average loss={} gamma={}".format(epoch + 1, np.average(epochLoss)/N,gamma))
+	print("[INFO] SGD decay epoch #{}, average loss={} alpha={}".format(epoch + 1, np.average(epochLoss)/N,gamma))
 
 # # Implicit Stochastic Gradient Descent
 # lossHistoryISGD=[]
@@ -170,72 +185,115 @@ for epoch in np.arange(0, epochs):
 # 	lossHistoryISGD.append(np.average(epochLoss))
 # 	print("[INFO] ISGD epoch #{}, loss={:.7f} alpha={}".format(epoch + 1, np.average(epochLoss) ,alpha))
 
-#SGD 1/2
-lossHistorySGDH=[]
-W_SGDH = np.random.uniform(size=(X.shape[1],))
-W_SGDH2=np.zeros(p)
-W_SGDH3=np.zeros(p)
-gradient=np.zeros(p)
-gradient2=np.zeros(p)
-s=0
-s2=0
-ars=[]
-ni=0
+#Decaying step size with averaging
+lossHistorySGDDecayAvg=[]
 n=0
-burnin=5000
+gamma=0.05
+W_SGD = W_SGDInit
+W_SGDDecayAvg = W_SGDInit
 for epoch in np.arange(0, epochs):
 	# initialize the total loss for the epoch
 	epochLoss = [] 
+	
+	new_order = np.random.permutation(N)
+	X=X[new_order]
+	y=y[new_order]
 	# loop over our data in batches
-	for (batchX, batchY) in next_batch(X, y, batch_size):
+	for i in range(N):
 		n+=1
-		preds = batchX.dot(W_SGDH)
-		error = preds - batchY
-		loss = 0.5*np.sum(error ** 2)
-		np.copyto(gradient2,gradient)
-		gradient = batchX.T.dot(error) 
-		np.copyto(W_SGDH3,W_SGDH2)
-		np.copyto(W_SGDH2,W_SGDH)
-		W_SGDH += -alpha * gradient
-		# if (n>1000):
-		s+=np.dot(W_SGDH-W_SGDH2,W_SGDH2-W_SGDH3)/(alpha**2)
-		s2+=np.dot(W_SGDH-W_SGDH2,W_SGDH2-W_SGDH3)/(alpha**2)
-		# s+=np.dot(gradient2,gradient)
+		preds = X[i].dot(W_SGD)
+		error = preds - y[i]
+		loss = 0.5*error*error
+		
+		gradient = X[i]*(error)
+		W_SGD=W_SGD-((gamma/np.sqrt(n))*gradient)
+		W_SGDDecayAvg=(W_SGD+(W_SGDDecayAvg*n))/(n+1)
+		if n%100==0 :
+			preds = X.dot(W_SGDDecayAvg)
+			error = preds - y
+			loss = 0.5*np.sum(error ** 2)
+			
+			epochLoss.append(loss)
+			lossHistorySGDDecayAvg.append(loss)
+	# lossHistorySGD.append(np.average(epochLoss)/batch_size)
+	print("[INFO] SGD Decay average epoch #{}, average loss={} alpha={}".format(epoch + 1, np.average(epochLoss)/N,gamma/np.sqrt(n)))
+
+
+#SGD 1/2
+s=0
+lossHistorySGDH=[]
+n=0
+ni=0
+gradient=np.zeros(p)
+gradient2=np.zeros(p)
+W_SGDH = W_SGDInit
+gamma=0.1
+burnin=10000
+ars=[]
+for epoch in np.arange(0, epochs):
+	# initialize the total loss for the epoch
+	epochLoss = [] 
+	new_order = np.random.permutation(N)
+	X=X[new_order]
+	y=y[new_order]
+	# loop over our data in batches
+	for i in range(N):
+		n+=1
+		preds = X[i].dot(W_SGDH)
+		error = preds - y[i]
+		loss = 0.5*error*error
+		
+		gradient = X[i]*(error)
+		if (n>1000):
+			s+=np.dot(gradient2,gradient)
 		# print(s)
-		ars.append(s2);
+		gradient2=gradient
+		ars.append(gamma);
 		if (n>ni+burnin) and (s<0) :
 			ni=n
 			s=0
-			s2=0
-			alpha/=2
-		preds = X.dot(W_SGDH)
-		error = preds - y
-		loss = 0.5*np.sum(error ** 2)
-		epochLoss.append(loss)
-		lossHistorySGDH.append(loss)
-		
-	# lossHistorySGDH.append(np.average(epochLoss)/batch_size)
-	
-	print("[INFO] SGD 1/2 epoch #{}, average loss={:.7f} alpha={}".format(epoch + 1, np.average(epochLoss)/N,alpha))
-print(W_nat)
-print(w_MLE)
-print(W_SGD)
-print(W_SGDH)
+			# s2=0
+			gamma/=2
+
+
+		W_SGDH += -gamma * gradient	
+		if n%100==0 :
+			preds = X.dot(W_SGDH)
+			error = preds - y
+			loss = 0.5*np.sum(error ** 2)
+			epochLoss.append(loss)
+			lossHistorySGDH.append(loss)
+	# lossHistorySGD.append(np.average(epochLoss)/batch_size)
+	print("[INFO] SGD epoch #{}, average loss={} step-size={}".format(epoch + 1, np.average(epochLoss)/N,gamma))
+
+cmap = ['black','red','sienna','gold','palegreen','darkgreen','deepskyblue','navy','plum','palevioletred','magenta','slategray']
 sns.set
 fig = plt.figure()
-plt.semilogy(np.linspace(0,epochs,len(lossHistorySGD),endpoint=False) , (np.array(lossHistorySGD)-loss_MLE)/N,'b',label='Vanilla SGD')
-plt.semilogy(np.linspace(0,epochs,len(lossHistorySGD2),endpoint=False) , (np.array(lossHistorySGD2)-loss_MLE)/N,'y',label='Average iterate SGD')
-plt.semilogy(np.linspace(0,epochs,len(lossHistorySGD3),endpoint=False) , (np.array(lossHistorySGD3)-loss_MLE)/N,'r',label='SGD with step-size 1/sqrt(t)')
-plt.semilogy(np.linspace(0,epochs,len(lossHistorySGDH),endpoint=False), (np.array(lossHistorySGDH)-loss_MLE)/N,'g',label='SGD 1/2')
+plt.semilogy(np.linspace(0,epochs,len(lossHistorySGD),endpoint=False) , (np.array(lossHistorySGD)-loss_MLE)/N,label='Vanilla SGD',color=cmap[0])
+plt.semilogy(np.linspace(0,epochs,len(lossHistorySGDAvg),endpoint=False) , (np.array(lossHistorySGDAvg)-loss_MLE)/N,label='Average iterate SGD',color=cmap[1])
+plt.semilogy(np.linspace(0,epochs,len(lossHistorySGDDecay),endpoint=False) , (np.array(lossHistorySGDDecay)-loss_MLE)/N,label='SGD with step-size 1/sqrt(t)',color=cmap[2])
+plt.semilogy(np.linspace(0,epochs,len(lossHistorySGDDecayAvg),endpoint=False), (np.array(lossHistorySGDDecayAvg)-loss_MLE)/N,label='SGD with step-size 1/sqrt(t) (Averaged)',color=cmap[3])
+plt.semilogy(np.linspace(0,epochs,len(lossHistorySGDH),endpoint=False), (np.array(lossHistorySGDH)-loss_MLE)/N,label='SGD 1/2',color=cmap[4])
 plt.legend(loc='upper left')
 fig.suptitle("Training Loss")
 plt.xlabel("Epoch #")
-plt.ylabel("Loss")
+plt.ylabel("Excess loss")
 plt.show()
 plt.clf()
-plt.plot(np.linspace(0,epochs,len(ars),endpoint=False) , np.array(ars),'b',label='variation of s')
+plt.loglog(np.linspace(0,epochs,len(lossHistorySGD),endpoint=False) , (np.array(lossHistorySGD)-loss_MLE)/N,label='Vanilla SGD',color=cmap[0])
+plt.loglog(np.linspace(0,epochs,len(lossHistorySGDAvg),endpoint=False) , (np.array(lossHistorySGDAvg)-loss_MLE)/N,label='Average iterate SGD',color=cmap[1])
+plt.loglog(np.linspace(0,epochs,len(lossHistorySGDDecay),endpoint=False) , (np.array(lossHistorySGDDecay)-loss_MLE)/N,label='SGD with step-size 1/sqrt(t)',color=cmap[2])
+plt.loglog(np.linspace(0,epochs,len(lossHistorySGDDecayAvg),endpoint=False), (np.array(lossHistorySGDDecayAvg)-loss_MLE)/N,label='SGD 1/2',color=cmap[3])
+plt.loglog(np.linspace(0,epochs,len(lossHistorySGDH),endpoint=False), (np.array(lossHistorySGDH)-loss_MLE)/N,label='SGD 1/2',color=cmap[4])
 plt.legend(loc='upper left')
-fig.suptitle("Variation of s")
+fig.suptitle("Training Loss")
 plt.xlabel("Epoch #")
-plt.ylabel("s")
+plt.ylabel("Excess loss")
+plt.show()
+plt.clf()
+plt.semilogy(np.linspace(0,epochs,len(ars),endpoint=False) , np.array(ars),label='step-size of SGD1/2',color=cmap[0])
+plt.legend(loc='upper left')
+fig.suptitle("Variation in step-size of SGD1/2")
+plt.xlabel("Epoch #")
+plt.ylabel("step-size")
 plt.show()
